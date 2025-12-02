@@ -1,0 +1,4 @@
+{
+  "api_key": "222",
+  "api_url": "https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent"
+}
