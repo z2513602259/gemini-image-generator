@@ -25,35 +25,23 @@ else:
     supabase = None
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['OUTPUT_FOLDER'] = 'static/outputs'
-app.config['CONFIG_FILE'] = 'config.json'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
-# 确保目录存在
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
-
-# 默认配置
+# 默认配置（从环境变量读取，Vercel 友好）
 DEFAULT_CONFIG = {
-    "api_key": "sk-eQarxTOr5XGyXKzAfIIDMImKDxy6WrLLqUgGzIjlH67LGZKV",
-    "api_url": "https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent"
+    "api_key": os.getenv("GEMINI_API_KEY", "sk-eQarxTOr5XGyXKzAfIIDMImKDxy6WrLLqUgGzIjlH67LGZKV"),
+    "api_url": os.getenv("GEMINI_API_URL", "https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent")
 }
 
 def load_config():
-    """加载配置"""
-    if os.path.exists(app.config['CONFIG_FILE']):
-        try:
-            with open(app.config['CONFIG_FILE'], 'r') as f:
-                return {**DEFAULT_CONFIG, **json.load(f)}
-        except:
-            pass
+    """加载配置（从环境变量）"""
     return DEFAULT_CONFIG.copy()
 
 def save_config(config):
-    """保存配置"""
-    with open(app.config['CONFIG_FILE'], 'w') as f:
-        json.dump(config, f, indent=2)
+    """保存配置（Vercel 环境下不支持文件写入，此函数保留用于兼容）"""
+    # Vercel 是只读文件系统，无法保存配置
+    # 如需持久化配置，应使用数据库或环境变量
+    pass
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
