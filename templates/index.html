@@ -459,6 +459,13 @@
                 return;
             }
 
+            // 从 localStorage 加载 API 配置
+            const config = loadLocalConfig();
+            if (!config.apiKey) {
+                showError('请先在设置中配置 API Key！点击右上角齿轮图标进行设置。');
+                return;
+            }
+
             // 记录生成开始时间
             generateStartTime = Date.now();
 
@@ -474,6 +481,8 @@
             formData.append('prompt', prompt);
             formData.append('aspect_ratio', document.getElementById('aspectRatio').value);
             formData.append('image_size', document.getElementById('imageSize').value);
+            formData.append('api_key', config.apiKey);
+            formData.append('api_url', config.apiUrl);
             
             selectedFiles.forEach(file => {
                 formData.append('images', file);
@@ -721,25 +730,42 @@
             document.body.style.overflow = '';
         }
 
-        // 设置功能
+        // 设置功能 - 使用 localStorage 保存配置
         const settingsModal = document.getElementById('settingsModal');
         const settingsForm = document.getElementById('settingsForm');
         const settingsApiKey = document.getElementById('settingsApiKey');
         const settingsApiUrl = document.getElementById('settingsApiUrl');
         const currentApiKey = document.getElementById('currentApiKey');
 
-        async function openSettings() {
-            // 加载当前设置
-            try {
-                const response = await fetch('/settings');
-                const data = await response.json();
-                settingsApiUrl.value = data.api_url || '';
-                currentApiKey.textContent = data.api_key_masked || '-';
-                settingsApiKey.value = '';
-                settingsApiKey.placeholder = '留空则保持不变';
-            } catch (error) {
-                console.error('加载设置失败:', error);
+        // 从 localStorage 加载配置
+        function loadLocalConfig() {
+            const apiKey = localStorage.getItem('gemini_api_key') || '';
+            const apiUrl = localStorage.getItem('gemini_api_url') || 'https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent';
+            return { apiKey, apiUrl };
+        }
+
+        // 保存配置到 localStorage
+        function saveLocalConfig(apiKey, apiUrl) {
+            if (apiKey) {
+                localStorage.setItem('gemini_api_key', apiKey);
             }
+            if (apiUrl) {
+                localStorage.setItem('gemini_api_url', apiUrl);
+            }
+        }
+
+        function maskApiKey(key) {
+            if (!key || key.length < 8) return '未设置';
+            return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4);
+        }
+
+        async function openSettings() {
+            // 从本地加载设置
+            const config = loadLocalConfig();
+            settingsApiUrl.value = config.apiUrl;
+            currentApiKey.textContent = maskApiKey(config.apiKey);
+            settingsApiKey.value = '';
+            settingsApiKey.placeholder = config.apiKey ? '留空则保持不变' : '请输入 API Key';
             
             settingsModal.classList.remove('hidden');
             settingsModal.classList.add('flex');
@@ -756,34 +782,27 @@
         settingsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const data = {};
-            if (settingsApiKey.value) {
-                data.api_key = settingsApiKey.value;
+            const config = loadLocalConfig();
+            
+            // 更新配置
+            if (settingsApiKey.value.trim()) {
+                config.apiKey = settingsApiKey.value.trim();
             }
-            if (settingsApiUrl.value) {
-                data.api_url = settingsApiUrl.value;
+            if (settingsApiUrl.value.trim()) {
+                config.apiUrl = settingsApiUrl.value.trim();
             }
             
-            try {
-                const response = await fetch('/settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('设置已保存！');
-                    closeSettings();
-                } else {
-                    alert('保存失败: ' + (result.error || '未知错误'));
-                }
-            } catch (error) {
-                alert('保存失败: ' + error.message);
+            // 验证必填项
+            if (!config.apiKey) {
+                alert('请输入 API Key！');
+                return;
             }
+            
+            // 保存到 localStorage
+            saveLocalConfig(config.apiKey, config.apiUrl);
+            
+            alert('设置已保存！');
+            closeSettings();
         });
     </script>
 </body>

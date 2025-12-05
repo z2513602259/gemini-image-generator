@@ -28,8 +28,9 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
 # 默认配置（从环境变量读取，Vercel 友好）
+# 注意：不再提供默认 API Key，用户必须自行配置
 DEFAULT_CONFIG = {
-    "api_key": os.getenv("GEMINI_API_KEY", "sk-eQarxTOr5XGyXKzAfIIDMImKDxy6WrLLqUgGzIjlH67LGZKV"),
+    "api_key": os.getenv("GEMINI_API_KEY", ""),  # 默认为空，强制用户配置
     "api_url": os.getenv("GEMINI_API_URL", "https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent")
 }
 
@@ -89,10 +90,19 @@ def generate():
         # 记录生成开始时间
         start_time = datetime.now()
         
-        # 加载配置
-        config = load_config()
-        api_key = config['api_key']
-        api_url = config['api_url']
+        # 从请求中获取 API 配置（前端通过 localStorage 保存并发送）
+        api_key = request.form.get('api_key', '').strip()
+        api_url = request.form.get('api_url', '').strip()
+        
+        # 如果请求中没有，尝试从环境变量获取（兼容服务端配置）
+        if not api_key:
+            api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        if not api_url:
+            api_url = os.getenv("GEMINI_API_URL", "https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent")
+        
+        # 检查 API Key 是否已配置
+        if not api_key:
+            return jsonify({'error': '请先在设置中配置 API Key！点击右上角齿轮图标进行设置。'}), 400
         
         # 获取提示词
         prompt = request.form.get('prompt', '')
