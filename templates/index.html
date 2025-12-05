@@ -44,6 +44,63 @@
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
+        
+        /* 历史记录抽屉样式 */
+        .history-drawer {
+            width: 100%;
+            max-width: 600px;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        /* 抽屉打开时的状态 */
+        #historyModal:not(.hidden) .history-drawer {
+            transform: translateX(0);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 640px) {
+            /* 小屏幕（手机） */
+            .history-drawer {
+                width: 100%;
+                max-width: none;
+            }
+        }
+        
+        @media (min-width: 641px) and (max-width: 1024px) {
+            /* 中等屏幕（平板） */
+            .history-drawer {
+                width: 70%;
+                max-width: 600px;
+            }
+        }
+        
+        @media (min-width: 1025px) {
+            /* 大屏幕（桌面） */
+            .history-drawer {
+                width: 50%;
+                max-width: 600px;
+            }
+        }
+        
+        /* 抽屉内容区域滚动条样式 */
+        .drawer-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .drawer-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .drawer-content::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        .drawer-content::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -53,10 +110,16 @@
             <div class="flex items-center justify-center gap-3 relative">
                 <i class="fas fa-magic text-3xl"></i>
                 <h1 class="text-3xl font-bold">Gemini 图片生成器</h1>
-                <button onclick="openSettings()" class="absolute right-0 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                    <i class="fas fa-cog"></i>
-                    <span class="hidden sm:inline">设置</span>
-                </button>
+                <div class="absolute right-0 top-1/2 -translate-y-1/2 flex bg-purple-600 hover:bg-purple-700 rounded-lg transition">
+                    <button onclick="openHistory()" class="px-4 py-2 flex items-center gap-2 transition hover:bg-purple-500 rounded-l-lg">
+                        <i class="fas fa-clock-rotate-left"></i>
+                        <span class="hidden sm:inline">历史</span>
+                    </button>
+                    <button onclick="openSettings()" class="px-4 py-2 flex items-center gap-2 transition hover:bg-purple-500 rounded-r-lg">
+                        <i class="fas fa-cog"></i>
+                        <span class="hidden sm:inline">设置</span>
+                    </button>
+                </div>
             </div>
             <p class="text-center mt-2 text-purple-100">使用 AI 将你的想法变成精美图片</p>
         </div>
@@ -206,7 +269,7 @@
     </footer>
 
     <!-- 图片预览模态框 -->
-    <div id="imageModal" class="fixed inset-0 bg-black/90 z-50 hidden items-center justify-center p-4" onclick="closeModal(event)">
+    <div id="imageModal" class="fixed inset-0 bg-black/90 z-90 hidden items-center justify-center p-4" onclick="closeModal(event)">
         <button onclick="event.stopPropagation(); closeModal();" class="absolute top-4 right-4 text-white hover:text-gray-300 transition z-10">
             <i class="fas fa-times text-3xl"></i>
         </button>
@@ -272,7 +335,38 @@
         </div>
     </div>
 
+    <!-- 历史记录抽屉 -->
+    <div id="historyModal" class="fixed inset-0 bg-black/50 z-50 hidden transition-opacity duration-300" onclick="closeHistory(event)">
+        <div class="history-drawer fixed top-0 right-0 h-full bg-white shadow-2xl overflow-hidden flex flex-col z-50" onclick="event.stopPropagation()">
+            <div class="drawer-header p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-clock-rotate-left text-purple-500"></i>
+                    历史记录
+                </h3>
+                <div class="flex gap-3">
+                    <button onclick="clearHistory()" class="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition text-sm">
+                        <i class="fas fa-trash"></i>
+                        清空历史
+                    </button>
+                    <button onclick="closeHistory()" class="text-gray-400 hover:text-gray-600 transition">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="drawer-content flex-1 overflow-y-auto p-6 space-y-4">
+                <div id="historyList" class="space-y-4">
+                    <!-- 历史记录将在这里动态插入 -->
+                </div>
+                <div id="emptyHistory" class="text-center py-12 text-gray-400" style="display: none;">
+                    <i class="fas fa-clock text-6xl mb-4"></i>
+                    <p>暂无历史记录</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // 基础DOM元素
         const form = document.getElementById('generateForm');
         const imageInput = document.getElementById('imageInput');
         const uploadZone = document.getElementById('uploadZone');
@@ -284,6 +378,14 @@
         const errorMessage = document.getElementById('errorMessage');
         const generateBtn = document.getElementById('generateBtn');
         const emptyState = document.getElementById('emptyState');
+        
+        // 历史记录相关DOM元素
+        const historyModal = document.getElementById('historyModal');
+        const historyList = document.getElementById('historyList');
+        const emptyHistory = document.getElementById('emptyHistory');
+        
+        // 生成开始时间
+        let generateStartTime = 0;
 
         let selectedFiles = [];
 
@@ -322,9 +424,12 @@
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const div = document.createElement('div');
-                    div.className = 'relative group';
+                    div.className = 'relative group flex flex-col items-center';
                     div.innerHTML = `
                         <img src="${e.target.result}" class="preview-image">
+                        <div class="mt-1 text-xs text-gray-600 text-center w-full truncate px-1">
+                            ${file.name}
+                        </div>
                         <button 
                             type="button"
                             onclick="removeFile(${index})"
@@ -353,6 +458,9 @@
                 showError('请输入提示词');
                 return;
             }
+
+            // 记录生成开始时间
+            generateStartTime = Date.now();
 
             // 显示加载状态
             emptyState.style.display = 'none';
@@ -440,6 +548,15 @@
         function openModal(imageUrl) {
             modalImage.src = imageUrl;
             modalDownload.href = imageUrl;
+            
+            // 关闭其他模态框
+            if (!settingsModal.classList.contains('hidden')) {
+                closeSettings();
+            }
+            if (!historyModal.classList.contains('hidden')) {
+                closeHistory();
+            }
+            
             imageModal.classList.remove('hidden');
             imageModal.classList.add('flex');
             document.body.style.overflow = 'hidden';
@@ -461,8 +578,148 @@
                 if (!settingsModal.classList.contains('hidden')) {
                     closeSettings();
                 }
+                if (!historyModal.classList.contains('hidden')) {
+                    closeHistory();
+                }
             }
         });
+
+        // 历史记录功能
+        
+        // 加载历史记录
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history');
+                const data = await response.json();
+                if (data.success) {
+                    return data.history;
+                } else {
+                    console.error('加载历史记录失败:', data.error);
+                    return [];
+                }
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+                return [];
+            }
+        }
+        
+        // 清空历史记录
+        async function clearHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                try {
+                    const response = await fetch('/history', {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        renderHistory();
+                    } else {
+                        console.error('清空历史记录失败:', data.error);
+                        alert('清空历史记录失败: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('清空历史记录失败:', error);
+                    alert('清空历史记录失败: ' + error.message);
+                }
+            }
+        }
+        
+        // 显示历史记录
+        async function renderHistory() {
+            const history = await loadHistory();
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '';
+                historyList.style.display = 'none';
+                emptyHistory.style.display = 'block';
+                return;
+            }
+            
+            historyList.style.display = 'block';
+            emptyHistory.style.display = 'none';
+            
+            historyList.innerHTML = history.map(item => `
+                <div class="border border-gray-200 rounded-xl p-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+                        <div class="text-sm text-gray-500">
+                            <i class="fas fa-clock"></i>
+                            <span>${new Date(item.created_at).toLocaleString('zh-CN')}</span>
+                            <span class="ml-2">
+                                <i class="fas fa-stopwatch"></i>
+                                <span>${item.duration.toFixed(1)}秒</span>
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="copyPrompt('${encodeURIComponent(item.prompt)}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm transition">
+                                <i class="fas fa-copy"></i>
+                                复制提示词
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h4 class="font-semibold text-gray-800 mb-1">提示词:</h4>
+                        <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg max-h-24 overflow-y-auto">${item.prompt}</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        ${item.images.map(imgUrl => `
+                            <div class="relative">
+                                <img src="${imgUrl}" class="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition" onclick="openModal('${imgUrl}')">
+                                <a href="${imgUrl}" download class="absolute bottom-2 right-2 bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 transition">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    ${item.texts.length > 0 ? `
+                        <div class="mt-3">
+                            <h4 class="font-semibold text-gray-800 mb-1">生成文本:</h4>
+                            ${item.texts.map(text => `
+                                <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg mb-2">${text}</p>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // 复制提示词
+        function copyPrompt(prompt) {
+            const decodedPrompt = decodeURIComponent(prompt);
+            navigator.clipboard.writeText(decodedPrompt).then(() => {
+                // 显示复制成功提示
+                const btn = event.target.closest('button');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                btn.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                btn.classList.add('bg-green-100', 'text-green-700');
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('bg-green-100', 'text-green-700');
+                    btn.classList.add('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                }, 1500);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
+            });
+        }
+        
+        // 打开历史记录抽屉
+        function openHistory() {
+            renderHistory();
+            historyModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // 关闭历史记录抽屉
+        function closeHistory(event) {
+            if (event && event.target && event.target !== historyModal) return;
+            historyModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
 
         // 设置功能
         const settingsModal = document.getElementById('settingsModal');

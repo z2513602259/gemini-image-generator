@@ -8,6 +8,21 @@ import requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# 加载环境变量
+load_dotenv()
+
+# Supabase 配置
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
+
+# 初始化 Supabase 客户端
+if SUPABASE_URL and SUPABASE_ANON_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+else:
+    supabase = None
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -21,8 +36,8 @@ os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 
 # 默认配置
 DEFAULT_CONFIG = {
-    "api_key": "sk-WzpmVCuL7FOcvoMOB322Af46679d445b9fA19cE86dF2C905",
-    "api_url": "https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent"
+    "api_key": "sk-eQarxTOr5XGyXKzAfIIDMImKDxy6WrLLqUgGzIjlH67LGZKV",
+    "api_url": "https://api.vectorengine.ai/v1beta/models/gemini-3-pro-image-preview:generateContent"
 }
 
 def load_config():
@@ -83,6 +98,9 @@ def update_settings():
 @app.route('/generate', methods=['POST'])
 def generate():
     try:
+        # 记录生成开始时间
+        start_time = datetime.now()
+        
         # 加载配置
         config = load_config()
         api_key = config['api_key']
@@ -158,8 +176,58 @@ def generate():
         if not results:
             return jsonify({'error': '未生成任何内容'}), 500
             
+        # 保存历史记录到 Supabase
+        if supabase:
+            try:
+                images = [item['url'] for item in results if item['type'] == 'image']
+                texts = [item['content'] for item in results if item['type'] == 'text']
+                
+                # 计算生成耗时
+                duration = (datetime.now() - start_time).total_seconds()
+                
+                supabase.table('generation_history').insert({
+                    'prompt': prompt,
+                    'aspect_ratio': aspect_ratio,
+                    'image_size': image_size,
+                    'images': images,
+                    'texts': texts,
+                    'duration': duration
+                }).execute()
+            except Exception as e:
+                print(f"保存历史记录到 Supabase 失败: {e}")
+        
         return jsonify({'success': True, 'results': results})
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 历史记录相关 API
+@app.route('/history', methods=['GET'])
+def get_history():
+    """获取历史记录"""
+    if not supabase:
+        return jsonify({'error': 'Supabase 未配置'}), 500
+    
+    try:
+        response = supabase.table('generation_history')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .execute()
+        
+        history = response.data
+        return jsonify({'success': True, 'history': history})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/history', methods=['DELETE'])
+def clear_history():
+    """清空历史记录"""
+    if not supabase:
+        return jsonify({'error': 'Supabase 未配置'}), 500
+    
+    try:
+        supabase.table('generation_history').delete().execute()
+        return jsonify({'success': True, 'message': '历史记录已清空'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
