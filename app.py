@@ -166,12 +166,11 @@ def generate():
                 if "text" in part:
                     results.append({'type': 'text', 'content': part['text']})
                 if "inlineData" in part:
-                    img_data = base64.b64decode(part["inlineData"]["data"])
-                    filename = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                    filepath = os.path.join(app.config['OUTPUT_FOLDER'], filename)
-                    with open(filepath, "wb") as f:
-                        f.write(img_data)
-                    results.append({'type': 'image', 'url': f'/static/outputs/{filename}'})
+                    # 直接返回 Base64 数据
+                    img_b64 = part["inlineData"]["data"]
+                    mime_type = part["inlineData"]["mimeType"] if "mimeType" in part["inlineData"] else "image/png"
+                    data_url = f"data:{mime_type};base64,{img_b64}"
+                    results.append({'type': 'image', 'url': data_url})
         
         if not results:
             return jsonify({'error': '未生成任何内容'}), 500
@@ -179,7 +178,15 @@ def generate():
         # 保存历史记录到 Supabase
         if supabase:
             try:
-                images = [item['url'] for item in results if item['type'] == 'image']
+                # 注意：Base64 数据太长，不适合直接存数据库。
+                # 这里我们只存一个标记，或者如果不上传到 Storage，就不存 url 字段
+                # 改进方案：如果需要历史记录看图，必须集成 Supabase Storage
+                # 临时方案：存一个占位符，或者如果 Supabase 支持大文本可以存（但不推荐）
+                
+                # Vercel 版暂时不存 Base64 到数据库，防止请求过大失败
+                # images = [item['url'] for item in results if item['type'] == 'image']
+                images = ["(图片未保存到云端)"] * len([x for x in results if x['type'] == 'image'])
+                
                 texts = [item['content'] for item in results if item['type'] == 'text']
                 
                 # 计算生成耗时
