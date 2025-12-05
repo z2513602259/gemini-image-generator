@@ -176,14 +176,9 @@ def generate():
         # 保存历史记录到 Supabase
         if supabase:
             try:
-                # 注意：Base64 数据太长，不适合直接存数据库。
-                # 这里我们只存一个标记，或者如果不上传到 Storage，就不存 url 字段
-                # 改进方案：如果需要历史记录看图，必须集成 Supabase Storage
-                # 临时方案：存一个占位符，或者如果 Supabase 支持大文本可以存（但不推荐）
-                
-                # Vercel 版暂时不存 Base64 到数据库，防止请求过大失败
-                # images = [item['url'] for item in results if item['type'] == 'image']
-                images = ["(图片未保存到云端)"] * len([x for x in results if x['type'] == 'image'])
+                # 保存实际的 Base64 图片数据到数据库
+                # JSONB 字段可以存储较大的数据，适合保存 Base64 图片
+                images = [item['url'] for item in results if item['type'] == 'image']
                 
                 texts = [item['content'] for item in results if item['type'] == 'text']
                 
